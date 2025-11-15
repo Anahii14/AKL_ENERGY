@@ -12,9 +12,9 @@
                     <i class="ti ti-building" style="font-size:26px;"></i>
                 </div>
                 <div>
-                    <h1 class="hero-title">Constructora AKL</h1>
+                    <h1 class="hero-title">Constructora AKL Energy</h1>
                     <div class="hero-ruc">RUC: 20123456789</div>
-                    <p class="hero-sub">Empresa líder en construcción y alquiler de equipos</p>
+                    <p class="hero-sub">Empresa líder en servicios de  baja y media tension y alquiler de equipos</p>
                 </div>
             </div>
         </section>
@@ -32,7 +32,7 @@
                 <div class="info-ico"><i class="ti ti-mail" style="font-size:20px;"></i></div>
                 <div class="info-text">
                     <small>Email</small>
-                    <b>contacto@constructoraabc.com</b>
+                    <b>contacto@aklenergy.com</b>
                 </div>
             </div>
 
@@ -40,7 +40,7 @@
                 <div class="info-ico"><i class="ti ti-map-pin" style="font-size:20px;"></i></div>
                 <div class="info-text">
                     <small>Ubicación</small>
-                    <b>Av. Principal 123, Lima, Perú</b>
+                    <b>Av. Huancavelica 123, Huancayo Perú</b>
                 </div>
             </div>
         </section>
