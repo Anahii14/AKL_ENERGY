@@ -76,7 +76,8 @@
         /* KPIs */
         .kpi-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            /* Se ajustó a auto-fit para acomodar la nueva tarjeta automáticamente sin romper el layout */
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 14px;
             margin-bottom: 12px
         }
@@ -88,6 +89,24 @@
             box-shadow: var(--shadow);
             padding: 16px 18px
         }
+
+        /* ESTILO NUEVO PARA LA TARJETA DE IA */
+        .kpi.kpi-ia {
+            background: linear-gradient(135deg, var(--brand), var(--brand2));
+            color: white;
+            border: none;
+        }
+        .kpi.kpi-ia .label { color: rgba(255,255,255,0.9); }
+        .kpi.kpi-ia .value { color: white; }
+        .kpi.kpi-ia .sub { color: rgba(255,255,255,0.8); }
+        .kpi.kpi-ia .badge-ia {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            margin-left: 5px;
+        }
+        /* FIN ESTILO NUEVO */
 
         .kpi .label {
             font-weight: 800;
@@ -226,6 +245,9 @@
         $obraId = $obraId ?? null;
         $fechaIni = $fechaIni ?? null;
         $fechaFin = $fechaFin ?? null;
+        
+        // --- AGREGADO: Variable segura para IA ---
+        $prediccion = $prediccion ?? 0; 
     @endphp
 
     <div class="container-xxl page-wrap">
@@ -271,6 +293,18 @@
 
         {{-- KPIs --}}
         <div class="kpi-grid">
+            
+            {{-- --- AGREGADO: TARJETA INTELIGENCIA ARTIFICIAL --- --}}
+            <div class="kpi kpi-ia">
+                <div class="label">
+                    <i class="ti ti-robot"></i> Predicción Demanda
+                    <span class="badge-ia">+IA</span>
+                </div>
+                <div class="value">{{ $prediccion }} <span style="font-size: 0.6em;">Unidades</span></div>
+                <div class="sub">Sugerencia compra (Mes Sig.)</div>
+            </div>
+            {{-- --- FIN TARJETA IA --- --}}
+
             <div class="kpi">
                 <div class="label"><i class="ti ti-currency-sol"></i> Total Cotizaciones</div>
                 <div class="value value--accent">S/ {{ number_format($kpi['cot_total'], 2) }}</div>
@@ -365,7 +399,6 @@
             </div> {{-- /row --}}
         </div>
 
-        {{-- PANE: Pedidos (placeholder) --}}
         {{-- PANE: Pedidos --}}
         <div class="tab-pane" id="t-pedidos">
             <style>

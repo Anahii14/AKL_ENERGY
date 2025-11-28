@@ -1,4 +1,3 @@
-{{-- resources/views/almacen/guias_orden.blade.php --}}
 @extends('layouts.almaceneroPlantilla')
 
 @section('title', 'Guías / Órdenes - Almacén')
@@ -474,4 +473,62 @@
             });
         }
     </script>
+
+    {{-- Script para Alerta de IA (Anomalías - Idea 2) --}}
+    @if(session('ia_anomalias'))
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            Swal.fire({
+                title: '⚠️ ALERTA DE SEGURIDAD (IA)',
+                html: `
+                    <p>El sistema ha detectado un comportamiento inusual en las cantidades:</p>
+                    <ul style="text-align:left; color:#d33; font-weight:bold; list-style:none;">
+                        @foreach(session('ia_anomalias') as $a)
+                            <li>🚫 {{ $a['material'] }}: {{ $a['cantidad'] }} unidades <br><small>({{ $a['mensaje'] }})</small></li>
+                        @endforeach
+                    </ul>
+                    <p>¿Estás seguro de que quieres autorizar esta salida?</p>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sí, Autorizar Riesgo',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Reenviamos el formulario automáticamente agregando el campo "ignorar_ia"
+                    let form = document.createElement('form');
+                    form.action = "{{ route('guias.store') }}"; 
+                    form.method = 'POST';
+                    
+                    // Token CSRF necesario para Laravel
+                    let csrfInput = document.createElement('input');
+                    csrfInput.type = 'hidden';
+                    csrfInput.name = '_token';
+                    csrfInput.value = '{{ csrf_token() }}';
+                    form.appendChild(csrfInput);
+
+                    // ID del pedido original
+                    let idInput = document.createElement('input');
+                    idInput.type = 'hidden';
+                    idInput.name = 'pedido_id';
+                    idInput.value = "{{ session('pedido_id') }}";
+                    form.appendChild(idInput);
+
+                    // Campo mágico para saltar la IA esta vez
+                    let ignoreInput = document.createElement('input');
+                    ignoreInput.type = 'hidden';
+                    ignoreInput.name = 'ignorar_ia';
+                    ignoreInput.value = "1";
+                    form.appendChild(ignoreInput);
+
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        });
+    </script>
+    @endif
+
 @endsection

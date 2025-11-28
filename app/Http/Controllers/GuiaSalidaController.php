@@ -7,11 +7,14 @@ use App\Models\DetalleGuiaSalida;
 use App\Models\Pedido;
 use App\Models\Proveedor;
 use App\Models\Material;
+use App\Models\OrdenCompra;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
-use App\Models\OrdenCompra;
+// Importaciones necesarias para ejecutar Python
+use Symfony\Component\Process\Process;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 
 class GuiaSalidaController extends Controller
 {
@@ -46,7 +49,6 @@ class GuiaSalidaController extends Controller
         ));
     }
 
-
     /** PDF individual de una guía */
     public function pdf(GuiaSalida $guia)
     {
@@ -70,13 +72,13 @@ class GuiaSalidaController extends Controller
 
         $pedido = Pedido::with(['obra', 'detalles.material'])->findOrFail($data['pedido_id']);
 
-        // Estados permitidos para procesar (deben existir en tu ENUM actual)
+        // Estados permitidos para procesar
         $permitidos = ['aprobado', 'en_proceso_de_compra'];
         if (!in_array($pedido->estado, $permitidos)) {
             return back()->with('error', 'Este pedido aún no puede procesarse.');
         }
 
-        // ===== VALIDACIÓN DE STOCK =====
+        // ===== 1. VALIDACIÓN DE STOCK (Técnica) =====
         $faltantes = [];
         foreach ($pedido->detalles as $d) {
             $mat = $d->material;
@@ -93,7 +95,7 @@ class GuiaSalidaController extends Controller
             }
         }
 
-        // Si hay faltantes → no generamos guía; mandamos datos para SweetAlert y sugerir OC
+        // Si hay faltantes → no generamos guía; sugerimos OC
         if (!empty($faltantes)) {
             if ($pedido->estado !== 'en_proceso_de_compra') {
                 $pedido->update([
@@ -109,7 +111,75 @@ class GuiaSalidaController extends Controller
         }
         // ===== FIN VALIDACIÓN DE STOCK =====
 
-        // Hay stock suficiente → generamos la Guía de Salida
+
+        // ===== 2. INTELIGENCIA ARTIFICIAL: DETECCIÓN DE ANOMALÍAS (Antirrobo) =====
+        // Solo ejecutamos esto si el usuario NO ha confirmado explícitamente "ignorar_ia"
+        if (!$request->has('ignorar_ia')) { 
+            $anomalias = [];
+            
+            // CONFIGURACIÓN RUTA PYTHON:
+            // Ajusta esto según tu sistema operativo.
+            // Para Windows (con entorno virtual):
+            $pythonExecutable = base_path('venv/Scripts/python.exe'); 
+            
+            // Para Linux/Mac o si usas Laragon directo:
+            // $pythonExecutable = base_path('venv/bin/python');
+
+            foreach ($pedido->detalles as $d) {
+                // Obtenemos historial de salidas anteriores de este material para aprender el patrón
+                $historial = DetalleGuiaSalida::where('material_id', $d->material_id)
+                    ->select('cantidad')
+                    ->latest()
+                    ->limit(50) // Usamos los últimos 50 registros para entrenar
+                    ->get()
+                    ->toArray();
+
+                // La IA necesita al menos unos pocos datos para poder juzgar (ej. 5 registros)
+                if (count($historial) >= 5) {
+                    $jsonHistorial = json_encode($historial);
+                    
+                    try {
+                        // Ejecutamos el script de Python pasando el historial y la cantidad actual
+                        $process = new Process([
+                            $pythonExecutable, 
+                            base_path('ai_scripts/deteccion_anomalias.py'), 
+                            $jsonHistorial, 
+                            $d->cantidad 
+                        ]);
+                        $process->run();
+
+                        // La IA devuelve: 1 (Normal) o -1 (Anomalía)
+                        $resultado = (int) trim($process->getOutput());
+
+                        // Si es -1, es una anomalía
+                        if ($resultado === -1) {
+                            $anomalias[] = [
+                                'material' => $d->material->nombre ?? 'Material ID '.$d->material_id,
+                                'cantidad' => $d->cantidad,
+                                'mensaje'  => "Cantidad inusualmente alta detectada por IA (Isolation Forest)."
+                            ];
+                        }
+                    } catch (\Exception $e) {
+                        // Si falla la ejecución de Python (ej. librería no instalada), 
+                        // continuamos silenciosamente para no bloquear la operación.
+                        // \Log::error("Error IA: " . $e->getMessage());
+                    }
+                }
+            }
+
+            // Si la IA encontró algo raro, detenemos el proceso y devolvemos la alerta a la vista
+            if (!empty($anomalias)) {
+                return back()
+                    ->with('ia_anomalias', $anomalias) // Datos para el SweetAlert
+                    ->with('pedido_id', $pedido->id)
+                    ->with('error', '⚠️ ALERTA DE SEGURIDAD: La IA detectó cantidades sospechosas.');
+            }
+        }
+        // ===== FIN AUDITORÍA IA =====
+
+
+        // ===== 3. GENERAR GUÍA DE SALIDA (Proceso normal) =====
+        // Si llegamos aquí, es porque hay stock Y (la IA dijo OK o el humano forzó la salida)
         $guia = DB::transaction(function () use ($pedido) {
             $codigo = 'G-' . Str::upper(Str::random(7));
 
@@ -150,7 +220,7 @@ class GuiaSalidaController extends Controller
             return $guia;
         });
 
-        // PDF
+        // Generar y descargar PDF
         $guia->load(['obra', 'pedido', 'detalles', 'user']);
         $pdf = Pdf::loadView('pdf.guia_salida', compact('guia'));
         return $pdf->download('Guia-' . $guia->codigo . '.pdf');

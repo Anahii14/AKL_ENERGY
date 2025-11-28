@@ -1,1 +1,3 @@
 *.sqlite*
+/venv
+/ai_scripts/__pycache__
